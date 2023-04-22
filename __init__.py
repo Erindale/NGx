@@ -101,7 +101,14 @@ class ngx_OT_save_relative(Operator):
     bl_idname = "wm.ngx_save_relative"
     bl_label = "Save Relative"
     bl_description = "Save Relative"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        if bpy.data.filepath == "":
+            cls.poll_message_set("Save the file!")
+            return False    
+        return True
     
     def execute(self, context):
         bpy.ops.file.make_paths_relative()
