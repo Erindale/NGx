@@ -25,6 +25,7 @@ bl_info = {
 
 import bpy, os, sys
 from bpy.types import Operator, Panel, Menu
+from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty, FloatProperty
 
 #=============================================================================== FUNCTIONS
 
@@ -39,7 +40,7 @@ def open_file(filename):
 
 #=============================================================================== OPERATORS
 
-class ngx_OT_reveal_in_explorer(Operator):
+class NGX_OT_reveal_in_explorer(Operator):
     bl_idname = "wm.ngx_reveal_in_explorer"
     bl_label = "Reveal in Explorer"
     bl_description = "Reveal in Explorer"
@@ -62,7 +63,7 @@ class ngx_OT_reveal_in_explorer(Operator):
             show_message_box("Asset not found!", "Error", 'ERROR')
         return {'FINISHED'}
     
-class ngx_OT_selected_wire_display(Operator):
+class NGX_OT_selected_wire_display(Operator):
     bl_idname = "wm.ngx_selected_wire_display"
     bl_label = "Selected as Wire"
     bl_description = "Draw selected as wire"
@@ -74,7 +75,7 @@ class ngx_OT_selected_wire_display(Operator):
                 obj.display_type = 'WIRE'
         return {'FINISHED'}
 
-class ngx_OT_join_split_normals(Operator):
+class NGX_OT_join_split_normals(Operator):
     bl_idname = "wm.ngx_join_split_normals"
     bl_label = "Join Split Normals"
     bl_description = "Join Split Normals"
@@ -97,7 +98,7 @@ class ngx_OT_join_split_normals(Operator):
         active.data.use_auto_smooth = True
         return {'FINISHED'}
 
-class ngx_OT_save_relative(Operator):
+class NGX_OT_save_relative(Operator):
     bl_idname = "wm.ngx_save_relative"
     bl_label = "Save Relative"
     bl_description = "Save Relative"
@@ -115,7 +116,7 @@ class ngx_OT_save_relative(Operator):
         bpy.ops.wm.save_mainfile()
         return {'FINISHED'}
 
-class ngx_OT_reload_linked_libraries(Operator):
+class NGX_OT_reload_linked_libraries(Operator):
     bl_idname = "wm.ngx_reload_linked_libraries"
     bl_label = "Reload Linked Libraries"
     bl_description = "Reload Linked Libraries"
@@ -124,10 +125,13 @@ class ngx_OT_reload_linked_libraries(Operator):
     def execute(self, context):
         for lib in bpy.data.libraries:
             if lib.filepath:
-                lib.reload()
+                try:
+                    lib.reload()
+                except:
+                    pass
         return {'FINISHED'}
 
-class ngx_OT_shapekey_to_attribute(Operator):
+class NGX_OT_shapekey_to_attribute(Operator):
     bl_idname = "wm.ngx_shapekey_to_attribute"
     bl_label = "Shape Keys to Attributes"
     bl_description = "Convert shape keys to vec3 point domain attributes"
@@ -150,9 +154,11 @@ class ngx_OT_shapekey_to_attribute(Operator):
                             new_attribute.data[i].vector = vertex.co
         return {'FINISHED'}
 
-#=============================================================================== PANELS
 
-class ngx_MT_object_tools(Menu):
+#====================================================================#
+
+
+class NGX_MT_object_tools(Menu):
     bl_label = "Object"
 
     def draw(self, context):
@@ -160,44 +166,54 @@ class ngx_MT_object_tools(Menu):
         layout.operator("wm.ngx_selected_wire_display", icon='SHADING_WIRE')
         layout.operator("wm.ngx_join_split_normals", icon='MOD_NORMALEDIT')
 
-class ngx_MT_data_tools(Menu):
+class NGX_MT_data_tools(Menu):
     bl_label = "Data"
 
     def draw(self, context):
         layout = self.layout
         layout.operator("wm.ngx_shapekey_to_attribute", icon='SHAPEKEY_DATA')
 
+class NGX_MT_notion_utils(Menu):
+    bl_label = "Notion"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Notion Utils", icon='EVENT_N')
 
 #=================#
 
-class ngx_MT_main_menu(Menu):
+class NGX_MT_main_menu(Menu):
     bl_label = "NGx"
 
     def menu_draw(self, context):
-        self.layout.menu("ngx_MT_main_menu")
+        self.layout.menu("NGX_MT_main_menu")
 
     def draw(self, context):
         layout = self.layout
         layout.operator("wm.ngx_save_relative", icon='FILE_TICK')
         layout.operator("wm.ngx_reveal_in_explorer", icon='FILE_FOLDER')
         layout.operator("wm.ngx_reload_linked_libraries", icon='FILE_REFRESH')
-        layout.menu("ngx_MT_object_tools", icon='OBJECT_DATA')
-        layout.menu("ngx_MT_data_tools", icon='OUTLINER_DATA_MESH')
+        layout.menu("NGX_MT_object_tools", icon='OBJECT_DATA')
+        layout.menu("NGX_MT_data_tools", icon='OUTLINER_DATA_MESH')
+        layout.separator()
+        layout.menu("NGX_MT_notion_utils", icon='EVENT_N')
 
 
 #=============================================================================== REGISTRATION
 
 
 classes = [
-    ngx_OT_reveal_in_explorer,
-    ngx_OT_selected_wire_display,
-    ngx_OT_join_split_normals,
-    ngx_OT_save_relative,
-    ngx_OT_reload_linked_libraries,
-    ngx_OT_shapekey_to_attribute,
-    ngx_MT_object_tools,
-    ngx_MT_data_tools,
-    ngx_MT_main_menu,
+    NGX_OT_reveal_in_explorer,
+    NGX_OT_selected_wire_display,
+    NGX_OT_join_split_normals,
+    NGX_OT_save_relative,
+    NGX_OT_reload_linked_libraries,
+    NGX_OT_shapekey_to_attribute,
+
+    NGX_MT_object_tools,
+    NGX_MT_data_tools,
+    NGX_MT_notion_utils,
+    NGX_MT_main_menu,
 ]
 
 def register():
@@ -207,10 +223,10 @@ def register():
             register_class(cls)
         except Exception as e:
             print(f"Error registering {cls}")
-    bpy.types.TOPBAR_MT_editor_menus.append(ngx_MT_main_menu.menu_draw)
+    bpy.types.TOPBAR_MT_editor_menus.append(NGX_MT_main_menu.menu_draw)
 
 def unregister():
     from bpy.utils import unregister_class
     for cls in reversed(classes):
         unregister_class(cls)
-    bpy.types.TOPBAR_MT_editor_menus.remove(ngx_MT_main_menu.menu_draw)
+    bpy.types.TOPBAR_MT_editor_menus.remove(NGX_MT_main_menu.menu_draw)
