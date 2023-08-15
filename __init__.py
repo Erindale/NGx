@@ -24,7 +24,7 @@ bl_info = {
 }
 
 import bpy, os, sys
-from bpy.types import Operator, Panel, Menu
+from bpy.types import Operator, Panel, Menu, PropertyGroup
 from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty, FloatProperty
 
 #=============================================================================== FUNCTIONS
@@ -154,6 +154,129 @@ class NGX_OT_shapekey_to_attribute(Operator):
                             new_attribute.data[i].vector = vertex.co
         return {'FINISHED'}
 
+class NGX_OT_multi_add_modifier(Operator):
+    bl_idname = "wm.ngx_multi_add_modifier"
+    bl_label = "Multi Modifier"
+    bl_description = "Add Modifier to all selected objects"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    modifier_name: EnumProperty(
+        items=[
+            ("", "Modify", "", "", 0),
+            ("DATA_TRANSFER", "Data Transfer", "Data Transfer", "MOD_DATA_TRANSFER", 1),
+            ("MESH_CACHE", "Mesh Cache", "Mesh Cache", "MOD_MESHDEFORM", 2),
+            ("MESH_SEQUENCE_CACHE", "Mesh Sequence Cache", "Mesh Sequence Cache", "MOD_MESHDEFORM", 3),
+            ("NORMAL_EDIT", "Normal Edit", "Normal Edit", "MOD_NORMALEDIT", 4),
+            ("WEIGHTED_NORMAL", "Weighted Normal", "Weighted Normal", "MOD_NORMALEDIT", 5),
+            ("UV_PROJECT", "UV Project", "UV Project", "MOD_UVPROJECT", 6),
+            ("UV_WARP", "UV Warp", "UV Warp", "MOD_UVPROJECT", 7),
+            ("VERTEX_WEIGHT_EDIT", "Vertex Weight Edit", "Vertex Weight Edit", "MOD_VERTEX_WEIGHT", 8),
+            ("VERTEX_WEIGHT_MIX", "Vertex Weight Mix", "Vertex Weight Mix", "MOD_VERTEX_WEIGHT", 9),
+            ("VERTEX_WEIGHT_PROXIMITY", "Vertex Weight Proximity", "Vertex Weight Proximity", "MOD_VERTEX_WEIGHT", 10),
+            ("", "Generate", "", "", 11),
+            ("ARRAY", "Array", "Array", "MOD_ARRAY", 12),
+            ("BEVEL", "Bevel", "Bevel", "MOD_BEVEL", 13),
+            ("BOOLEAN", "Boolean", "Boolean", "MOD_BOOLEAN", 14),
+            ("BUILD", "Build", "Build", "MOD_BUILD", 15),
+            ("DECIMATE", "Decimate", "Decimate", "MOD_DECIM", 16),
+            ("EDGE_SPLIT", "Edge Split", "Edge Split, Edge Split", "MOD_EDGESPLIT", 17),
+            ("NODES", "Geometry Nodes", "Geometry Nodes", "GEOMETRY_NODES", 18),
+            ("MASK", "Mask", "Mask", "MOD_MASK", 19),
+            ("MIRROR", "Mirror", "Mirror", "MOD_MIRROR", 20),
+            ("MULTIRES", "Multiresolution", "Multiresolution", "MOD_MULTIRES", 21),
+            ("REMESH", "Remesh", "Remesh", "MOD_REMESH", 22),
+            ("SCREW", "Screw", "Screw", "MOD_SCREW", 23),
+            ("SOLIDIFY", "Solidify", "Solidify", "MOD_SOLIDIFY", 24),
+            ("SKIN", "Skin", "Skin", "MOD_SKIN", 25),
+            ("SUBSURF", "Subdivision Surface", "Subdivision Surface", "MOD_SUBSURF", 26),
+            ("TRIANGULATE", "Triangulate", "Triangulate", "MOD_TRIANGULATE", 27),
+            ("VOLUME_TO_MESH", "Volume to Mesh", "Volume to Mesh", "VOLUME_DATA", 28),
+            ("WELD", "Weld", "Weld", "AUTOMERGE_OFF", 29),
+            ("WIREFRAME", "Wireframe", "Wireframe", "MOD_WIREFRAME", 30),
+            ("", "Deform", "", "", 31),
+            ("ARMATURE", "Armature", "Armature", "MOD_ARMATURE", 32),
+            ("CAST", "Cast", "Cast", "MOD_CAST", 33),
+            ("CURVE", "Curve", "Curve", "MOD_CURVE", 34),
+            ("DISPLACE", "Displace", "Displace", "MOD_DISPLACE", 35),
+            ("HOOK", "Hook", "Hook", "HOOK", 36),
+            ("LAPLACIANDEFORM", "Laplacian Deform", "Laplacian Deform", "MOD_LATTICE", 37),
+            ("LATTICE", "Lattice", "Lattice", "MOD_LATTICE", 38),
+            ("MESH_DEFORM", "Mesh Deform", "Mesh Deform", "MOD_MESHDEFORM", 39),
+            ("SHRINKWRAP", "Shrinkwrap", "Shrinkwrap", "MOD_SHRINKWRAP", 40),
+            ("SIMPLE_DEFORM", "Simple Deform", "Simple Deform", "MOD_SIMPLEDEFORM", 41),
+            ("SMOOTH", "Smooth", "Smooth", "MOD_SMOOTH", 42),
+            ("SMOOTH_CORRECTIVE", "Smooth Corrective", "Smooth Corrective", "MOD_SMOOTH", 43),
+            ("LAPLACIANSMOOTH", "Laplacian Smooth", "Laplacian Smooth", "MOD_SMOOTH", 44),
+            ("SURFACE_DEFORM", "Surface Deform", "Surface Deform", "MOD_MESHDEFORM", 45),
+            ("WARP", "Warp", "Warp", "MOD_WARP", 46),
+            ("WAVE", "Wave", "Wave", "MOD_WAVE", 47),
+            ("", "Simulate", "", "", 48),
+            ("CLOTH", "Cloth", "Cloth", "MOD_CLOTH", 49),
+            ("COLLISION", "Collision", "Collision", "MOD_PHYSICS", 50),
+            ("DYNAMIC_PAINT", "Dynamic Paint", "Dynamic Paint", "MOD_DYNAMICPAINT", 51),
+            ("EXPLODE", "Explode", "Explode", "MOD_EXPLODE", 52),
+            ("FLUID", "Fluid", "Fluid", "MOD_FLUIDSIM", 53),
+            ("OCEAN", "Ocean", "Ocean", "MOD_OCEAN", 54),
+            ("PARTICLE_INSTANCE", "Particle Instance", "Particle Instance", "MOD_PARTICLE_INSTANCE", 55),
+            ("PARTICLE_SYSTEM", "Particle System", "Particle System", "MOD_PARTICLES", 56),
+            ("SOFT_BODY", "Soft Body", "Soft Body", "MOD_SOFT", 57)
+        ],
+        name="",
+        description="Select a Modifier from the list",
+    )
+
+    modifier_label: StringProperty(
+        name="Label",
+        description="Modifier Label",
+        default="",
+    )
+
+    def populate_node_group_enum(self, context):
+        enum_items = [(n.name, n.name, f"Select {n.name}") for n in bpy.data.node_groups]
+        return enum_items
+
+    node_group_enum: EnumProperty(
+        items=populate_node_group_enum,
+        name="Node Group",
+        description="Select a Node Group from the list",
+    )
+
+    is_deleting: EnumProperty(
+        items=[
+            ("ADD", "Add", "Add", "ZOOMIN", 0),
+            ("REMOVE", "Remove", "Remove", "ZOOMOUT", 1),
+        ],
+        name="Add / Remove",
+        description="Add or Remove Modifier",
+    )
+
+    def execute(self, context):
+        for obj in context.selected_objects:
+            if obj.type == 'MESH':
+                if self.is_deleting == "REMOVE":
+                    for modifier in obj.modifiers:
+                        if modifier.type == self.modifier_name and modifier.name == self.modifier_label:
+                            obj.modifiers.remove(modifier)
+                            break
+                else:
+                    modifier = obj.modifiers.new(self.modifier_label, self.modifier_name)
+                    if self.modifier_name == "NODES":
+                        modifier.node_group = bpy.data.node_groups.get(self.node_group_enum)
+        return {'FINISHED'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "is_deleting", expand=True)
+        if self.is_deleting == "ADD":
+            layout.prop(self, "modifier_name")
+            if self.modifier_name == "NODES":
+                layout.prop(self, "node_group_enum")
+        layout.prop(self, "modifier_label")
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
 
 #====================================================================#
 
@@ -165,6 +288,7 @@ class NGX_MT_object_tools(Menu):
         layout = self.layout
         layout.operator("wm.ngx_selected_wire_display", icon='SHADING_WIRE')
         layout.operator("wm.ngx_join_split_normals", icon='MOD_NORMALEDIT')
+        layout.operator("wm.ngx_multi_add_modifier", icon='MODIFIER')
 
 class NGX_MT_data_tools(Menu):
     bl_label = "Data"
@@ -209,6 +333,7 @@ classes = [
     NGX_OT_save_relative,
     NGX_OT_reload_linked_libraries,
     NGX_OT_shapekey_to_attribute,
+    NGX_OT_multi_add_modifier,
 
     NGX_MT_object_tools,
     NGX_MT_data_tools,
