@@ -25,7 +25,7 @@ bl_info = {
 
 import bpy, os, sys
 from bpy.types import Operator, Panel, Menu, PropertyGroup
-from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty, FloatProperty
+from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty, FloatProperty, PointerProperty
 
 #=============================================================================== FUNCTIONS
 
@@ -154,6 +154,37 @@ class NGX_OT_shapekey_to_attribute(Operator):
                             new_attribute.data[i].vector = vertex.co
         return {'FINISHED'}
 
+
+class NGX_Properties(PropertyGroup):
+    target_object: PointerProperty(
+        type=bpy.types.Object,
+        name="Target Object",
+        description="Objects within this group will be set as target for the modifier"
+    )
+    modifier_label: bpy.props.StringProperty(
+        name="Name", 
+        description="Modifier Label", 
+        default="" 
+    )
+
+class NGX_OT_NewNodeGroup(Operator):
+    bl_idname = "wm.ngx_new_node_group"
+    bl_label = "New Node Group"
+    bl_description = "Create a new Node Group"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        ng = bpy.data.node_groups.new(context.window_manager.ngx.modifier_label, "GeometryNodeTree")
+        input_node = ng.nodes.new("NodeGroupInput")
+        output_node = ng.nodes.new("NodeGroupOutput")
+        input_node.location = (-300, 0)
+        output_node.location = (300, 0)
+        ng.inputs.new("NodeSocketGeometry", "Geometry")
+        ng.outputs.new("NodeSocketGeometry", "Geometry")
+        ng.links.new(input_node.outputs[0], output_node.inputs[0])
+        return {'FINISHED'}
+
+
 class NGX_OT_multi_add_modifier(Operator):
     bl_idname = "wm.ngx_multi_add_modifier"
     bl_label = "Multi Modifier"
@@ -223,12 +254,7 @@ class NGX_OT_multi_add_modifier(Operator):
         ],
         name="",
         description="Select a Modifier from the list",
-    )
-
-    modifier_label: StringProperty(
-        name="Label",
-        description="Modifier Label",
-        default="",
+        default="BEVEL",
     )
 
     def populate_node_group_enum(self, context):
@@ -250,28 +276,76 @@ class NGX_OT_multi_add_modifier(Operator):
         description="Add or Remove Modifier",
     )
 
+    def get_objects(self, context):
+        items = [(obj.name, obj.name, "") for obj in bpy.data.objects]
+        items.insert(0, ("None", "None", ""))
+        return items
+
+    target_object: EnumProperty(
+        items=get_objects,
+        name="Target Object",
+        description="Select an object"
+    )
+
+    modifier_float: FloatProperty(
+        name="Distance",
+        description="Distance",
+        default=0.1,
+        unit='LENGTH',
+    )
+
     def execute(self, context):
         for obj in context.selected_objects:
-            if obj.type == 'MESH':
+            if obj.type in ["MESH", "CURVE"]:
                 if self.is_deleting == "REMOVE":
                     for modifier in obj.modifiers:
-                        if modifier.type == self.modifier_name and modifier.name == self.modifier_label:
+                        if modifier.name == context.window_manager.ngx.modifier_label:
                             obj.modifiers.remove(modifier)
                             break
                 else:
-                    modifier = obj.modifiers.new(self.modifier_label, self.modifier_name)
-                    if self.modifier_name == "NODES":
-                        modifier.node_group = bpy.data.node_groups.get(self.node_group_enum)
+                    try:
+                        modifier = obj.modifiers.new(context.window_manager.ngx.modifier_label, self.modifier_name)
+                        if self.modifier_name == "NODES":
+                            modifier.node_group = bpy.data.node_groups.get(self.node_group_enum)
+                        if self.modifier_name in ["DATA_TRANSFER", "BOOLEAN", "LATTICE", "MESH_DEFORM"] and obj != context.window_manager.ngx.target_object:
+                            modifier.object = context.window_manager.ngx.target_object
+                        if self.modifier_name == "SCREW":
+                            modifier.angle = 0
+                            modifier.screw_offset = self.modifier_float
+                            modifier.steps = 1
+                            modifier.render_steps = 1
+                        if self.modifier_name == "SOLIDIFY":
+                            modifier.thickness = self.modifier_float
+                        if self.modifier_name == "BEVEL":
+                            modifier.width = self.modifier_float
+                            modifier.segments = 1
+                        if self.modifier_name == "ARRAY":
+                            modifier.use_relative_offset = False
+                            modifier.use_constant_offset = True
+                    except Exception as e:
+                        print(e)
         return {'FINISHED'}
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "is_deleting", expand=True)
-        if self.is_deleting == "ADD":
-            layout.prop(self, "modifier_name")
-            if self.modifier_name == "NODES":
-                layout.prop(self, "node_group_enum")
-        layout.prop(self, "modifier_label")
+        if bpy.context.selected_objects:
+            layout.prop(self, "is_deleting", expand=True)
+            if self.is_deleting == "ADD":
+                layout.prop(self, "modifier_name")
+            layout.prop(context.window_manager.ngx, "modifier_label")
+            if self.is_deleting == "ADD":
+                if self.modifier_name == "NODES":
+                    if not self.node_group_enum:
+                        layout.operator("wm.ngx_new_node_group")
+                    else:
+                        layout.prop(self, "node_group_enum")
+                if self.modifier_name in ["DATA_TRANSFER", "BOOLEAN", "LATTICE", "MESH_DEFORM"]:
+                    layout.prop(context.window_manager.ngx, "target_object")
+                if self.modifier_name in ["BEVEL", "SOLIDIFY", "SCREW"]:
+                    layout.prop(self, "modifier_float")
+        else:
+            layout.label(text="Select an object", icon='ERROR')
+
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
@@ -314,6 +388,7 @@ class NGX_MT_main_menu(Menu):
 
     def draw(self, context):
         layout = self.layout
+        layout.operator("wm.test_op", icon="FILE_TICK")
         layout.operator("wm.ngx_save_relative", icon='FILE_TICK')
         layout.operator("wm.ngx_reveal_in_explorer", icon='FILE_FOLDER')
         layout.operator("wm.ngx_reload_linked_libraries", icon='FILE_REFRESH')
@@ -333,6 +408,8 @@ classes = [
     NGX_OT_save_relative,
     NGX_OT_reload_linked_libraries,
     NGX_OT_shapekey_to_attribute,
+    NGX_Properties,
+    NGX_OT_NewNodeGroup,
     NGX_OT_multi_add_modifier,
 
     NGX_MT_object_tools,
@@ -349,9 +426,11 @@ def register():
         except Exception as e:
             print(f"Error registering {cls}")
     bpy.types.TOPBAR_MT_editor_menus.append(NGX_MT_main_menu.menu_draw)
+    bpy.types.WindowManager.ngx = PointerProperty(type=NGX_Properties)
 
 def unregister():
     from bpy.utils import unregister_class
     for cls in reversed(classes):
         unregister_class(cls)
+    del bpy.types.WindowManager.ngx
     bpy.types.TOPBAR_MT_editor_menus.remove(NGX_MT_main_menu.menu_draw)
